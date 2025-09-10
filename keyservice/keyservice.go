@@ -23,7 +23,14 @@ func New(cfg *keyservice.Config, store keyservice.Store, logger zerolog.Logger) 
 	apiHandler := &api.API{Store: store, Logger: logger}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/keys/", apiHandler.KeyHandler)
+
+	// This handler does nothing, but it's needed to complete the middleware chain for OPTIONS.
+	doNothingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+
+	// ADD THIS LINE to handle the browser's OPTIONS preflight request.
+	mux.Handle("OPTIONS /keys/{userID}", api.CorsMiddleware(doNothingHandler))
+	mux.Handle("POST /keys/{userID}", api.CorsMiddleware(http.HandlerFunc(apiHandler.StoreKeyHandler))) // Use Handle instead of HandleFunc
+	mux.Handle("GET /keys/{userID}", api.CorsMiddleware(http.HandlerFunc(apiHandler.GetKeyHandler)))    // Use Handle instead of HandleFunc
 
 	return &Wrapper{
 		cfg:    cfg,
