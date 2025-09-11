@@ -49,7 +49,8 @@ The service has been successfully refactored, completing the foundational work o
 
 ## **Deployment and running**
 
-This service is implemented to run on Google Cloud, this assumes you have gcloud cli installed, have generated credentials (using `gcloud auth login`)
+This service is implemented to run on Google Cloud, this assumes you have gcloud cli installed, have generated credentials (using `gcloud auth login`). The command to start the service is also in a Makefile
+
 * Create a Google Cloud Project and set GCP_PROJECT_ID
 ```
 export GCP_PROJECT_ID=myproject-mvp
