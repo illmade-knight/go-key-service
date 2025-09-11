@@ -10,115 +10,116 @@ import (
 	"github.com/illmade-knight/go-key-service/internal/api"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
-// mockStore is a test double for the keyservice.Store interface.
-type mockStore struct {
-	StoreKeyFunc func(userID string, key []byte) error
-	GetKeyFunc   func(userID string) ([]byte, error)
+// MockStore is a mock implementation of the keyservice.Store interface
+// generated using testify/mock.
+type MockStore struct {
+	mock.Mock
 }
 
-func (m *mockStore) StoreKey(userID string, key []byte) error {
-	return m.StoreKeyFunc(userID, key)
+// StoreKey is the mock implementation for storing a key.
+func (m *MockStore) StoreKey(userID string, key []byte) error {
+	args := m.Called(userID, key)
+	return args.Error(0)
 }
 
-func (m *mockStore) GetKey(userID string) ([]byte, error) {
-	return m.GetKeyFunc(userID)
+// GetKey is the mock implementation for retrieving a key.
+func (m *MockStore) GetKey(userID string) ([]byte, error) {
+	args := m.Called(userID)
+	// Handle nil case for the byte slice if the first argument isn't one.
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]byte), args.Error(1)
 }
 
-func TestKeyHandler(t *testing.T) {
+// TestStoreKeyHandler tests the POST /keys/{userID} endpoint handler.
+func TestStoreKeyHandler(t *testing.T) {
 	const testUserID = "user-123"
 	const testKey = "my-public-key"
-	logger := zerolog.Nop() // Use a no-op logger for all tests
+	logger := zerolog.Nop()
 
-	t.Run("POST /keys/{userID} - Success", func(t *testing.T) {
+	t.Run("Success - 201 Created", func(t *testing.T) {
 		// Arrange
-		mock := &mockStore{
-			StoreKeyFunc: func(userID string, key []byte) error {
-				assert.Equal(t, testUserID, userID)
-				assert.Equal(t, []byte(testKey), key)
-				return nil
-			},
-		}
-		apiHandler := &api.API{Store: mock, Logger: logger}
+		mockStore := new(MockStore)
+		mockStore.On("StoreKey", testUserID, []byte(testKey)).Return(nil)
+
+		apiHandler := &api.API{Store: mockStore, Logger: logger}
 		req := httptest.NewRequest(http.MethodPost, "/keys/"+testUserID, bytes.NewReader([]byte(testKey)))
+		req.SetPathValue("userID", testUserID) // Set the path value for the test request
 		rr := httptest.NewRecorder()
 
 		// Act
-		apiHandler.KeyHandler(rr, req)
+		apiHandler.StoreKeyHandler(rr, req)
 
 		// Assert
 		assert.Equal(t, http.StatusCreated, rr.Code)
+		mockStore.AssertExpectations(t)
 	})
 
-	t.Run("GET /keys/{userID} - Success", func(t *testing.T) {
+	t.Run("Store Fails - 500 Internal Server Error", func(t *testing.T) {
 		// Arrange
-		mock := &mockStore{
-			GetKeyFunc: func(userID string) ([]byte, error) {
-				assert.Equal(t, testUserID, userID)
-				return []byte(testKey), nil
-			},
-		}
-		apiHandler := &api.API{Store: mock, Logger: logger}
-		req := httptest.NewRequest(http.MethodGet, "/keys/"+testUserID, nil)
+		mockStore := new(MockStore)
+		mockStore.On("StoreKey", testUserID, []byte(testKey)).Return(errors.New("database is down"))
+
+		apiHandler := &api.API{Store: mockStore, Logger: logger}
+		req := httptest.NewRequest(http.MethodPost, "/keys/"+testUserID, bytes.NewReader([]byte(testKey)))
+		req.SetPathValue("userID", testUserID) // Set the path value for the test request
 		rr := httptest.NewRecorder()
 
 		// Act
-		apiHandler.KeyHandler(rr, req)
+		apiHandler.StoreKeyHandler(rr, req)
+
+		// Assert
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		mockStore.AssertExpectations(t)
+	})
+}
+
+// TestGetKeyHandler tests the GET /keys/{userID} endpoint handler.
+func TestGetKeyHandler(t *testing.T) {
+	const testUserID = "user-123"
+	const testKey = "my-public-key"
+	logger := zerolog.Nop()
+
+	t.Run("Success - 200 OK", func(t *testing.T) {
+		// Arrange
+		mockStore := new(MockStore)
+		mockStore.On("GetKey", testUserID).Return([]byte(testKey), nil)
+
+		apiHandler := &api.API{Store: mockStore, Logger: logger}
+		req := httptest.NewRequest(http.MethodGet, "/keys/"+testUserID, nil)
+		req.SetPathValue("userID", testUserID) // Set the path value for the test request
+		rr := httptest.NewRecorder()
+
+		// Act
+		apiHandler.GetKeyHandler(rr, req)
 
 		// Assert
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Equal(t, testKey, rr.Body.String())
 		assert.Equal(t, "application/octet-stream", rr.Header().Get("Content-Type"))
+		mockStore.AssertExpectations(t)
 	})
 
-	t.Run("GET /keys/{userID} - Not Found", func(t *testing.T) {
+	t.Run("Not Found - 404 Not Found", func(t *testing.T) {
 		// Arrange
-		mock := &mockStore{
-			GetKeyFunc: func(userID string) ([]byte, error) {
-				return nil, errors.New("not found")
-			},
-		}
-		apiHandler := &api.API{Store: mock, Logger: logger}
-		req := httptest.NewRequest(http.MethodGet, "/keys/not-found-user", nil)
+		const notFoundUser = "not-found-user"
+		mockStore := new(MockStore)
+		mockStore.On("GetKey", notFoundUser).Return(nil, errors.New("not found"))
+
+		apiHandler := &api.API{Store: mockStore, Logger: logger}
+		req := httptest.NewRequest(http.MethodGet, "/keys/"+notFoundUser, nil)
+		req.SetPathValue("userID", notFoundUser) // Set the path value for the test request
 		rr := httptest.NewRecorder()
 
 		// Act
-		apiHandler.KeyHandler(rr, req)
+		apiHandler.GetKeyHandler(rr, req)
 
 		// Assert
 		assert.Equal(t, http.StatusNotFound, rr.Code)
-	})
-
-	t.Run("POST /keys/{userID} - Store Fails", func(t *testing.T) {
-		// Arrange
-		mock := &mockStore{
-			StoreKeyFunc: func(userID string, key []byte) error {
-				return errors.New("database is down")
-			},
-		}
-		apiHandler := &api.API{Store: mock, Logger: logger}
-		req := httptest.NewRequest(http.MethodPost, "/keys/"+testUserID, bytes.NewReader([]byte(testKey)))
-		rr := httptest.NewRecorder()
-
-		// Act
-		apiHandler.KeyHandler(rr, req)
-
-		// Assert
-		assert.Equal(t, http.StatusInternalServerError, rr.Code)
-	})
-
-	t.Run("Unsupported Method", func(t *testing.T) {
-		// Arrange
-		mock := &mockStore{}
-		apiHandler := &api.API{Store: mock, Logger: logger}
-		req := httptest.NewRequest(http.MethodDelete, "/keys/"+testUserID, nil)
-		rr := httptest.NewRecorder()
-
-		// Act
-		apiHandler.KeyHandler(rr, req)
-
-		// Assert
-		assert.Equal(t, http.StatusMethodNotAllowed, rr.Code)
+		mockStore.AssertExpectations(t)
 	})
 }
