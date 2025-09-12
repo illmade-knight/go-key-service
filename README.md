@@ -47,6 +47,38 @@ Plaintext
 
 The service has been successfully refactored, completing the foundational work of **Phase 1** of the development roadmap. The architecture is now robust, testable, and ready for production-hardening features.
 
+## **Deployment and running**
+
+This service is implemented to run on Google Cloud, this assumes you have gcloud cli installed, have generated credentials (using `gcloud auth login`). The command to start the service is also in a Makefile
+
+* Create a Google Cloud Project and set GCP_PROJECT_ID
+```
+export GCP_PROJECT_ID=myproject-mvp
+```
+* Get credentials to be used in calling Google APIs
+```
+gcloud auth application-default login
+```
+* In order to use GCloud Firestore you will need to enable the Cloud Firestore API by visiting this api
+https://console.cloud.google.com/apis/api/firestore.googleapis.com/metrics?project=myproject-mvp
+	* You will need to create a default database as well by visiting this url - you'll need to select some options such as region, encryption, SLA etc
+	https://console.cloud.google.com/datastore/setup?project=homesafemvp
+* Run the key service using GCloud Firestore as storage
+```
+go run cmd/keyservice/runscalablekeyservice.go
+```
+* Run the key service using in memory storage
+```
+go run cmd/simple/runkeystore.go
+```
+* Key API now avail at http://localhost:8081/keys/ e.g.
+```
+$ curl -d "THIS_IS_A_KEY" http://localhost:8081/keys/my-userid
+$ curl  http://localhost:8081/keys/my-userid
+THIS_IS_A_KEY
+```
+
+
 ### **What's Complete (Phase 1 Foundation)**
 
 The core architecture and primary features are now implemented and tested.
