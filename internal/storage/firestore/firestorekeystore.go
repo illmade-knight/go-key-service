@@ -1,3 +1,7 @@
+// REFACTOR: This file is updated to implement the new URN-based and
+// context-aware keyservice.Store interface. All Firestore operations now use
+// the canonical string representation of the URN as the document key.
+
 // Package firestore provides a key store implementation using Google Cloud Firestore.
 package firestore
 
@@ -6,6 +10,7 @@ import (
 	"fmt"
 
 	"cloud.google.com/go/firestore"
+	"github.com/illmade-knight/go-secure-messaging/pkg/urn"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -29,29 +34,31 @@ func New(client *firestore.Client, collectionName string) *Store {
 	}
 }
 
-// StoreKey creates or overwrites a document with the user's public key.
-func (s *Store) StoreKey(userID string, key []byte) error {
-	doc := s.collection.Doc(userID)
-	_, err := doc.Set(context.Background(), keyDocument{PublicKey: key})
+// StoreKey creates or overwrites a document with the entity's public key.
+func (s *Store) StoreKey(ctx context.Context, entityURN urn.URN, key []byte) error {
+	entityKey := entityURN.String()
+	doc := s.collection.Doc(entityKey)
+	_, err := doc.Set(ctx, keyDocument{PublicKey: key})
 	if err != nil {
-		return fmt.Errorf("failed to store key for user %s: %w", userID, err)
+		return fmt.Errorf("failed to store key for entity %s: %w", entityKey, err)
 	}
 	return nil
 }
 
-// GetKey retrieves a user's public key from a Firestore document.
-func (s *Store) GetKey(userID string) ([]byte, error) {
-	doc, err := s.collection.Doc(userID).Get(context.Background())
+// GetKey retrieves an entity's public key from a Firestore document.
+func (s *Store) GetKey(ctx context.Context, entityURN urn.URN) ([]byte, error) {
+	entityKey := entityURN.String()
+	doc, err := s.collection.Doc(entityKey).Get(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
-			return nil, fmt.Errorf("key for user %s not found", userID)
+			return nil, fmt.Errorf("key for entity %s not found", entityKey)
 		}
-		return nil, fmt.Errorf("failed to get key for user %s: %w", userID, err)
+		return nil, fmt.Errorf("failed to get key for entity %s: %w", entityKey, err)
 	}
 
 	var kd keyDocument
 	if err := doc.DataTo(&kd); err != nil {
-		return nil, fmt.Errorf("failed to decode key for user %s: %w", userID, err)
+		return nil, fmt.Errorf("failed to decode key for entity %s: %w", entityKey, err)
 	}
 	return kd.PublicKey, nil
 }

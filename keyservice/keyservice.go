@@ -1,3 +1,6 @@
+// REFACTOR: This file is updated to use the new, more descriptive route
+// parameter {entityURN} to make the API contract clearer.
+
 // Package keyservice provides the main, embeddable service wrapper.
 package keyservice
 
@@ -27,10 +30,10 @@ func New(cfg *keyservice.Config, store keyservice.Store, logger zerolog.Logger) 
 	// This handler does nothing, but it's needed to complete the middleware chain for OPTIONS.
 	doNothingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 
-	// ADD THIS LINE to handle the browser's OPTIONS preflight request.
-	mux.Handle("OPTIONS /keys/{userID}", api.CorsMiddleware(doNothingHandler))
-	mux.Handle("POST /keys/{userID}", api.CorsMiddleware(http.HandlerFunc(apiHandler.StoreKeyHandler))) // Use Handle instead of HandleFunc
-	mux.Handle("GET /keys/{userID}", api.CorsMiddleware(http.HandlerFunc(apiHandler.GetKeyHandler)))    // Use Handle instead of HandleFunc
+	// REFACTOR: The route parameter is now {entityURN} for clarity.
+	mux.Handle("OPTIONS /keys/{entityURN}", api.CorsMiddleware(doNothingHandler))
+	mux.Handle("POST /keys/{entityURN}", api.CorsMiddleware(http.HandlerFunc(apiHandler.StoreKeyHandler)))
+	mux.Handle("GET /keys/{entityURN}", api.CorsMiddleware(http.HandlerFunc(apiHandler.GetKeyHandler)))
 
 	return &Wrapper{
 		cfg:    cfg,
