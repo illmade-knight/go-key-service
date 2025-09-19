@@ -1,55 +1,56 @@
 package main
 
 import (
-	"io"
+	"context"
 	"log"
-	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/illmade-knight/go-key-service/pkg/storage"
+	"github.com/illmade-knight/go-key-service/internal/storage/inmemory"
+	"github.com/illmade-knight/go-key-service/keyservice"
+	ks "github.com/illmade-knight/go-key-service/pkg/keyservice"
+	"github.com/rs/zerolog"
 )
 
 // api holds the dependencies for our service, like the storage layer.
 type api struct {
-	store storage.Store
-}
-
-func (a *api) keyHandler(w http.ResponseWriter, r *http.Request) {
-	userID := r.URL.Path[len("/keys/"):]
-
-	switch r.Method {
-	case http.MethodPost:
-		key, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "Cannot read request body", http.StatusBadRequest)
-			return
-		}
-		if err := a.store.StoreKey(userID, key); err != nil {
-			http.Error(w, "Failed to store key", http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusCreated)
-		log.Printf("Stored public key for user: %s", userID)
-
-	case http.MethodGet:
-		key, err := a.store.GetKey(userID)
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Write(key)
-		log.Printf("Served public key for user: %s", userID)
-	}
+	store *inmemory.Store
 }
 
 func main() {
-	// Create the storage implementation
-	store := storage.NewInMemoryStore()
+	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	
+	cfg := &ks.Config{
+		HTTPListenAddr: ":8081",
+	}
 
-	// Inject the dependency into our api struct
-	app := &api{store: store}
+	// 1. Create the inmemory storage implementation
+	store := inmemory.New()
+	logger.Info().Msg("Using Inmemory key store")
 
-	http.HandleFunc("/keys/", app.keyHandler)
-	log.Println("Key Service listening on :8081...")
-	http.ListenAndServe(":8081", nil)
+	// 2. Create the service wrapper, injecting the inmemory store
+	service := keyservice.New(cfg, store, logger)
+
+	// 3. Start the service and handle graceful shutdown
+	go func() {
+		if err := service.Start(); err != nil {
+			logger.Fatal().Err(err).Msg("Failed to start key service")
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info().Msg("Shutdown signal received. Gracefully stopping service...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	
+	if err := service.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("Service shutdown failed: %v", err)
+	}
+
+	logger.Info().Msg("Service stopped gracefully.")
 }
