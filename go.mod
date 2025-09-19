@@ -6,7 +6,7 @@ toolchain go1.24.6
 
 require (
 	cloud.google.com/go/firestore v1.18.0
-	github.com/illmade-knight/go-secure-messaging v0.0.7-beta
+	github.com/illmade-knight/go-secure-messaging v0.0.9-beta
 	github.com/illmade-knight/go-test v0.0.6
 	github.com/rs/zerolog v1.34.0
 	github.com/stretchr/testify v1.11.1
