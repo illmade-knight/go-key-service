@@ -15,5 +15,5 @@ testv:
 start-service-simple:
 	@go run cmd/simple/runkeystore.go
 
-start-service--scalable:
+start-service-scalable:
 	@go run cmd/keyservice/runscalablekeyservice.go	

@@ -73,8 +73,8 @@ go run cmd/simple/runkeystore.go
 ```
 * Key API now avail at http://localhost:8081/keys/ e.g.
 ```
-$ curl -d "THIS_IS_A_KEY" http://localhost:8081/keys/my-userid
-$ curl  http://localhost:8081/keys/my-userid
+$ curl -d "THIS_IS_A_KEY" http://localhost:8081/keys/urn:sm:user:user-alice
+$ curl  http://localhost:8081/keys/urn:sm:user:user-alice
 THIS_IS_A_KEY
 ```
 
