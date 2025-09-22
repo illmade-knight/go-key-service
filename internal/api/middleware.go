@@ -8,7 +8,9 @@ func CorsMiddleware(next http.Handler) http.Handler {
 		// For production, you should restrict it to your frontend's domain.
 		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:4200")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		//w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, Authorization")
 
 		// If it's a preflight (OPTIONS) request, send a 200 OK and stop.
 		if r.Method == "OPTIONS" {

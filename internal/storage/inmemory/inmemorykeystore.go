@@ -1,4 +1,3 @@
-// REFACTOR: This file is updated to implement the new URN-based and
 // context-aware keyservice.Store interface.
 
 // Package inmemory provides a thread-safe in-memory key store.

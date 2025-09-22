@@ -6,7 +6,8 @@ toolchain go1.24.6
 
 require (
 	cloud.google.com/go/firestore v1.18.0
-	github.com/illmade-knight/go-secure-messaging v0.0.9-beta
+	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/illmade-knight/go-secure-messaging v0.0.12-beta
 	github.com/illmade-knight/go-test v0.0.6
 	github.com/rs/zerolog v1.34.0
 	github.com/stretchr/testify v1.11.1
@@ -118,6 +119,6 @@ require (
 	google.golang.org/genproto v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250818200422-3122310a409c // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250818200422-3122310a409c // indirect
-	google.golang.org/protobuf v1.36.7 // indirect
+	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

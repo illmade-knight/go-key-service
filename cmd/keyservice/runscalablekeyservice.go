@@ -18,8 +18,14 @@ import (
 func main() {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
 
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		logger.Fatal().Msg("JWT_SECRET environment variable must be set.")
+	}
+
 	cfg := &ks.Config{
 		HTTPListenAddr: ":8081",
+		JWTSecret:      jwtSecret,
 	}
 
 	// 1. Create a real Firestore client for the production environment

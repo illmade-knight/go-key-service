@@ -1,7 +1,3 @@
-// REFACTOR: This file is updated to use the new, more descriptive route
-// parameter {entityURN} to make the API contract clearer.
-
-// Package keyservice provides the main, embeddable service wrapper.
 package keyservice
 
 import (
@@ -23,16 +19,20 @@ type Wrapper struct {
 
 // New creates and wires up the entire key service.
 func New(cfg *keyservice.Config, store keyservice.Store, logger zerolog.Logger) *Wrapper {
-	apiHandler := &api.API{Store: store, Logger: logger}
+	// Pass the JWTSecret from the config to the API handler.
+	apiHandler := &api.API{Store: store, Logger: logger, JWTSecret: cfg.JWTSecret}
 
 	mux := http.NewServeMux()
 
-	// This handler does nothing, but it's needed to complete the middleware chain for OPTIONS.
-	doNothingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+	// THE REFACTOR:
+	// We apply the JWT middleware only to the POST route, which is the action
+	// that needs to be restricted to the authenticated user.
+	storeKeyHandler := http.HandlerFunc(apiHandler.StoreKeyHandler)
+	mux.Handle("POST /keys/{entityURN}", api.CorsMiddleware(apiHandler.JwtAuthMiddleware(storeKeyHandler)))
 
-	// REFACTOR: The route parameter is now {entityURN} for clarity.
+	// The GET route remains public, as does the preflight OPTIONS handler.
+	doNothingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 	mux.Handle("OPTIONS /keys/{entityURN}", api.CorsMiddleware(doNothingHandler))
-	mux.Handle("POST /keys/{entityURN}", api.CorsMiddleware(http.HandlerFunc(apiHandler.StoreKeyHandler)))
 	mux.Handle("GET /keys/{entityURN}", api.CorsMiddleware(http.HandlerFunc(apiHandler.GetKeyHandler)))
 
 	return &Wrapper{

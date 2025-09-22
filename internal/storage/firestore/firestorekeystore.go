@@ -1,4 +1,3 @@
-// REFACTOR: This file is updated to implement the new URN-based and
 // context-aware keyservice.Store interface. All Firestore operations now use
 // the canonical string representation of the URN as the document key.
 
