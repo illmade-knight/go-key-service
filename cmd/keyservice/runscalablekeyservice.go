@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net/http" // ADDED
 	"os"
 	"os/signal"
 	"syscall"
@@ -18,47 +20,56 @@ import (
 func main() {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
 
+	// --- 1. Configuration ---
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		logger.Fatal().Msg("JWT_SECRET environment variable must be set.")
 	}
-
+	projectID := os.Getenv("GCP_PROJECT_ID")
+	if projectID == "" {
+		logger.Fatal().Msg("GCP_PROJECT_ID environment variable must be set.")
+	}
 	cfg := &ks.Config{
 		HTTPListenAddr: ":8081",
 		JWTSecret:      jwtSecret,
 	}
 
-	// 1. Create a real Firestore client for the production environment
+	// --- 2. Dependency Injection ---
 	ctx := context.Background()
-	projectID := os.Getenv("GCP_PROJECT_ID")
-	if projectID == "" {
-		logger.Fatal().Msg("GCP_PROJECT_ID environment variable must be set.")
-	}
 	fsClient, err := firestore.NewClient(ctx, projectID)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create Firestore client")
 	}
 	defer fsClient.Close()
-
-	// 2. Create the concrete Firestore storage implementation
 	store := firestorestorage.New(fsClient, "public-keys")
 	logger.Info().Msg("Using Firestore key store")
 
-	// 3. Create the service wrapper, injecting the Firestore store
+	// --- 3. Service Initialization ---
 	service := keyservice.New(cfg, store, logger)
 
-	// 4. Start the service and handle graceful shutdown
+	// ADDED: Signal that all dependencies are ready and the service can now pass readiness checks.
+	service.SetReady(true)
+
+	// --- 4. Start Service and Handle Shutdown (Standard Pattern) ---
+	errChan := make(chan error, 1)
 	go func() {
-		if err := service.Start(); err != nil {
-			logger.Fatal().Err(err).Msg("Failed to start key service")
+		logger.Info().Str("address", cfg.HTTPListenAddr).Msg("Starting service...")
+		// The service's Start method is now blocking, inherited from BaseServer.
+		if startErr := service.Start(); startErr != nil && !errors.Is(startErr, http.ErrServerClosed) {
+			errChan <- startErr
 		}
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
 
-	logger.Info().Msg("Shutdown signal received. Gracefully stopping service...")
+	select {
+	case err := <-errChan:
+		logger.Fatal().Err(err).Msg("Service failed to start")
+	case sig := <-quit:
+		logger.Info().Str("signal", sig.String()).Msg("OS signal received, initiating shutdown.")
+	}
+
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

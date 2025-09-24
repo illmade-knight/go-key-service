@@ -1,4 +1,6 @@
-// REFACTOR: This new test file provides local unit tests for the Firestore
+//go:build integration
+
+//REFACTOR: This new test file provides local unit tests for the Firestore
 // store, ensuring it correctly implements the URN-based interface.
 
 package firestore_test

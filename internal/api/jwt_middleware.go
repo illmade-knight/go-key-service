@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/illmade-knight/go-microservice-base/pkg/response"
 )
 
 // contextKey is a private type to prevent collisions with other context keys.
@@ -20,13 +21,13 @@ func (a *API) JwtAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			http.Error(w, "Unauthorized: Missing Authorization header", http.StatusUnauthorized)
+			response.WriteJSONError(w, http.StatusUnauthorized, "Unauthorized: Missing Authorization header")
 			return
 		}
 
 		tokenString, found := strings.CutPrefix(authHeader, "Bearer ")
 		if !found {
-			http.Error(w, "Unauthorized: Invalid token format", http.StatusUnauthorized)
+			response.WriteJSONError(w, http.StatusUnauthorized, "Unauthorized: Invalid token format")
 			return
 		}
 
@@ -34,26 +35,25 @@ func (a *API) JwtAuthMiddleware(next http.Handler) http.Handler {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			// This secret MUST be the same one used by the node-identity-service.
 			return []byte(a.JWTSecret), nil
 		})
 
 		if err != nil {
-			http.Error(w, "Unauthorized: Invalid token", http.StatusUnauthorized)
+			response.WriteJSONError(w, http.StatusUnauthorized, "Unauthorized: Invalid token")
 			return
 		}
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 			userID, ok := claims["sub"].(string)
 			if !ok || userID == "" {
-				http.Error(w, "Unauthorized: Invalid user ID in token", http.StatusUnauthorized)
+				response.WriteJSONError(w, http.StatusUnauthorized, "Unauthorized: Invalid user ID in token")
 				return
 			}
 
 			ctx := context.WithValue(r.Context(), userContextKey, userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		} else {
-			http.Error(w, "Unauthorized: Invalid token claims", http.StatusUnauthorized)
+			response.WriteJSONError(w, http.StatusUnauthorized, "Unauthorized: Invalid token claims")
 		}
 	})
 }
@@ -62,4 +62,11 @@ func (a *API) JwtAuthMiddleware(next http.Handler) http.Handler {
 func GetUserIDFromContext(ctx context.Context) (string, bool) {
 	userID, ok := ctx.Value(userContextKey).(string)
 	return userID, ok
+}
+
+// --- NEW FUNCTION ---
+// ContextWithUserID is a helper function for tests to inject a user ID
+// into a context, simulating a successful authentication from middleware.
+func ContextWithUserID(ctx context.Context, userID string) context.Context {
+	return context.WithValue(ctx, userContextKey, userID)
 }

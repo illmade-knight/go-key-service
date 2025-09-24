@@ -20,7 +20,8 @@ func NewTestServer() *httptest.Server {
 	logger := zerolog.Nop()
 
 	service := keyservice.New(cfg, store, logger)
-	server := httptest.NewServer(service.Handler())
+	// CHANGED: Use Mux() instead of the removed Handler() method.
+	server := httptest.NewServer(service.Mux())
 
 	return server
 }
@@ -35,7 +36,8 @@ func NewTestKeyService(fsClient *firestore.Client, collectionName string) *httpt
 	store := firestorestorage.New(fsClient, collectionName)
 
 	service := keyservice.New(cfg, store, logger)
-	server := httptest.NewServer(service.Handler())
+	// CHANGED: Use Mux() instead of the removed Handler() method.
+	server := httptest.NewServer(service.Mux())
 
 	return server
 }

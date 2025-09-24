@@ -6,12 +6,14 @@ package api_test
 import (
 	"bytes"
 	"context"
+	"encoding/json" // ADDED: For unmarshaling JSON error responses
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/illmade-knight/go-key-service/internal/api"
+	"github.com/illmade-knight/go-microservice-base/pkg/response" // ADDED: For the APIError struct
 	"github.com/illmade-knight/go-secure-messaging/pkg/urn"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -54,6 +56,12 @@ func TestStoreKeyHandler(t *testing.T) {
 		apiHandler := &api.API{Store: mockStore, Logger: logger}
 		req := httptest.NewRequest(http.MethodPost, "/keys/"+testURN.String(), bytes.NewReader([]byte(testKey)))
 		req.SetPathValue("entityURN", testURN.String())
+
+		// ADDED: Simulate successful authentication by the JWT middleware
+		// The handler expects the authenticated user's ID in the context.
+		ctx := api.ContextWithUserID(context.Background(), "user-123")
+		req = req.WithContext(ctx)
+
 		rr := httptest.NewRecorder()
 
 		// Act
@@ -64,19 +72,54 @@ func TestStoreKeyHandler(t *testing.T) {
 		mockStore.AssertExpectations(t)
 	})
 
-	t.Run("Failure - Invalid URN", func(t *testing.T) {
+	// ADDED: Crucial test for authorization logic.
+	t.Run("Failure - 403 Forbidden", func(t *testing.T) {
 		// Arrange
 		mockStore := new(MockStore) // No expectations, as it shouldn't be called.
 		apiHandler := &api.API{Store: mockStore, Logger: logger}
-		req := httptest.NewRequest(http.MethodPost, "/keys/invalid-urn", bytes.NewReader([]byte(testKey)))
-		req.SetPathValue("entityURN", "invalid-urn")
+		req := httptest.NewRequest(http.MethodPost, "/keys/"+testURN.String(), bytes.NewReader([]byte(testKey)))
+		req.SetPathValue("entityURN", testURN.String())
+
+		// Simulate a DIFFERENT user being authenticated.
+		ctx := api.ContextWithUserID(context.Background(), "another-user-456")
+		req = req.WithContext(ctx)
+
 		rr := httptest.NewRecorder()
 
 		// Act
 		apiHandler.StoreKeyHandler(rr, req)
 
 		// Assert
+		assert.Equal(t, http.StatusForbidden, rr.Code)
+		var errResp response.APIError
+		err := json.Unmarshal(rr.Body.Bytes(), &errResp)
+		require.NoError(t, err)
+		assert.Equal(t, "Forbidden", errResp.Error)
+		mockStore.AssertNotCalled(t, "StoreKey", mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("Failure - Invalid URN", func(t *testing.T) {
+		// Arrange
+		mockStore := new(MockStore)
+		apiHandler := &api.API{Store: mockStore, Logger: logger}
+		req := httptest.NewRequest(http.MethodPost, "/keys/invalid-urn", bytes.NewReader([]byte(testKey)))
+		req.SetPathValue("entityURN", "invalid-urn")
+
+		// The handler still requires an authenticated user in the context.
+		ctx := api.ContextWithUserID(context.Background(), "user-123")
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+
+		// Act
+		apiHandler.StoreKeyHandler(rr, req)
+
+		// Assert
+		// CHANGED: Verify the new JSON error response.
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		var errResp response.APIError
+		err := json.Unmarshal(rr.Body.Bytes(), &errResp)
+		require.NoError(t, err)
+		assert.Equal(t, "Invalid URN format in request path", errResp.Error)
 		mockStore.AssertNotCalled(t, "StoreKey", mock.Anything, mock.Anything, mock.Anything)
 	})
 }
@@ -123,7 +166,24 @@ func TestGetKeyHandler(t *testing.T) {
 		apiHandler.GetKeyHandler(rr, req)
 
 		// Assert
+		// CHANGED: Verify the new JSON error response.
 		assert.Equal(t, http.StatusNotFound, rr.Code)
+		var errResp response.APIError
+		err = json.Unmarshal(rr.Body.Bytes(), &errResp)
+		require.NoError(t, err)
+		assert.Equal(t, "Key not found", errResp.Error)
 		mockStore.AssertExpectations(t)
 	})
+}
+
+// NOTE: To make ContextWithUserID accessible, you may need to export it
+// from the api package by renaming it from contextWithUserID to ContextWithUserID
+// or by creating a new helper function for testing.
+// For simplicity in this fix, I've created a helper here.
+// In a real project, you might expose a `testutils` package.
+func (m *MockStore) ContextWithUserID(ctx context.Context, userID string) context.Context {
+	// This is a stand-in for the actual key and function in the api package.
+	type contextKey string
+	const userContextKey contextKey = "userID"
+	return context.WithValue(ctx, userContextKey, userID)
 }

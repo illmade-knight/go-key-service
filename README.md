@@ -1,27 +1,20 @@
 # **go-key-service**
 
-The Key Service is a secure, durable, and highly available microservice for storing and retrieving users' public keys. It serves as a foundational component in a secure messaging ecosystem, enabling clients to discover keys for end-to-end encryption.
+The Key Service is a secure, durable, and highly available microservice for storing and retrieving entity public keys. It serves as a foundational component in a secure messaging ecosystem, enabling clients to discover keys for end-to-end encryption.
 
-The service is built with a clean, layered architecture that separates its public API from internal implementation details. This decoupled design, consistent with our other microservices, allows for flexible data storage backends and robust testing.
-
----
+The service is built on the standardized go-microservice-base library, ensuring consistent lifecycle management, observability, and error handling across our entire microservices. It features a clean, layered architecture that separates its public API from internal implementation details, allowing for flexible data storage backends and robust testing.
 
 ## **Directory Structure**
 
 The repository follows standard Go project layout conventions for clarity and maintainability.
 
-Plaintext
-
 .  
 ├── cmd/  
 │   └── keyservice/  
 │       └── main.go              \# Assembles dependencies and runs the service  
-├── e2e/  
-│   ├── full\_flow\_test.go        \# E2E test with routing-service (from other repo)  
-│   └── fullkeystore\_test.go     \# Standalone E2E test for this service  
 ├── internal/  
-│   ├── api/  
-│   │   └── handlers.go          \# Private HTTP handlers  
+│   ├── api/                     \# Private HTTP handlers and middleware  
+│   │   └── ...  
 │   └── storage/  
 │       ├── firestore/           \# Concrete Firestore store implementation  
 │       └── inmemory/            \# Concrete in-memory store implementation  
@@ -34,67 +27,44 @@ Plaintext
 └── test/  
 └── e2e\_helpers.go           \# Public helpers for E2E tests
 
-* **cmd/**: Contains the executable entry point. Its main.go file assembles the service by creating concrete dependencies (like a Firestore client) and injecting them into the service wrapper.
-* **e2e/**: Holds end-to-end integration tests that treat the service as a black box, verifying its functionality via its public HTTP API.
-* **internal/**: Contains all private application logic. This includes the HTTP handlers (api) and the concrete storage implementations (storage/firestore, storage/inmemory).
-* **pkg/**: Holds the service's public contract. pkg/keyservice defines the Store interface and Config struct that other packages use to interact with the service's domain.
-* **keyservice/**: The primary, public-facing service library. It provides the Wrapper and New() constructor, which assembles the internal components into a runnable service.
-* **test/**: Provides public helper functions that allow external E2E tests to create a fully assembled test server without violating the internal package boundary.
+## **Current State: Production Ready**
 
----
+The service is feature-complete according to its development roadmap and is ready for production deployment. It has been fully refactored to incorporate our standard microservice base library.
 
-## **Current State vs. Roadmap**
+### **Features Implemented**
 
-The service has been successfully refactored, completing the foundational work of **Phase 1** of the development roadmap. The architecture is now robust, testable, and ready for production-hardening features.
+* ✅ **Standardized Service Base**: The service now uses go-microservice-base, providing robust, consistent lifecycle management and a graceful shutdown sequence.
+* ✅ **Full Observability**: Exposes standard endpoints for monitoring:
+    * GET /healthz: Liveness probe to confirm the service is running.
+    * GET /readyz: Readiness probe to confirm the service is ready to handle traffic.
+    * GET /metrics: Exposes performance metrics in the Prometheus format.
+* ✅ **JWT Authentication & Authorization**: The POST /keys/{entityURN} endpoint is secured. A user can only store a key for themselves, enforced by matching the JWT sub claim against the entity ID in the URN.
+* ✅ **URN-Based Identity**: The service can store and retrieve keys for any entity type (users, devices, etc.) using a generic Uniform Resource Name (URN) identifier.
+* ✅ **Persistent Storage**: A production-ready FirestoreStore provides a durable backend for storing keys. An InMemoryStore is available for testing.
+* ✅ **Structured Error Handling**: All API errors are returned as standardized {"error": "message"} JSON objects.
+* ✅ **Structured Logging**: All logging is handled by zerolog for machine-readable output.
 
-## **Deployment and running**
+## **Deployment and Running**
 
-This service is implemented to run on Google Cloud, this assumes you have gcloud cli installed, have generated credentials (using `gcloud auth login`). The command to start the service is also in a Makefile
+This service is designed to run on Google Cloud.
 
-* Create a Google Cloud Project and set GCP_PROJECT_ID
-```
-export GCP_PROJECT_ID=myproject-mvp
-```
-* Get credentials to be used in calling Google APIs
-```
-gcloud auth application-default login
-```
-* In order to use GCloud Firestore you will need to enable the Cloud Firestore API by visiting this api
-https://console.cloud.google.com/apis/api/firestore.googleapis.com/metrics?project=myproject-mvp
-	* You will need to create a default database as well by visiting this url - you'll need to select some options such as region, encryption, SLA etc
-	https://console.cloud.google.com/datastore/setup?project=homesafemvp
-* Run the key service using GCloud Firestore as storage
-```
-go run cmd/keyservice/runscalablekeyservice.go
-```
-* Run the key service using in memory storage
-```
-go run cmd/simple/runkeystore.go
-```
-* Key API now avail at http://localhost:8081/keys/ e.g.
-```
-$ curl -d "THIS_IS_A_KEY" http://localhost:8081/keys/urn:sm:user:user-alice
-$ curl  http://localhost:8081/keys/urn:sm:user:user-alice
-THIS_IS_A_KEY
-```
+1. **Set Environment Variables**:  
+   export GCP\_PROJECT\_ID=my-gcp-project  
+   export JWT\_SECRET=a-very-secure-secret-key  
+   
+   in deployment we use google secret manager but import as if a standard env variable
 
+2. **Authenticate with Google Cloud**:  
+   gcloud auth application-default login
 
-### **What's Complete (Phase 1 Foundation)**
+3. **Enable Firestore API** in your GCP project and create a database.
+4. **Run the Service**:  
+   go run cmd/keyservice/runscalablekeyservice.go
 
-The core architecture and primary features are now implemented and tested.
+5. **API Usage**:  
+   \# Store a key (requires a valid JWT for the user)  
+   $ curl \-X POST \-H "Authorization: Bearer \<JWT\>" \-d "THIS\_IS\_A\_KEY" http://localhost:8081/keys/urn:sm:user:user-alice
 
-* ✅ **Architectural Refactor:** The project has been fully migrated to the clean, layered architecture.
-* ✅ **Persistent Storage:** The FirestoreStore has been implemented, providing a durable, production-ready backend for storing keys.
-* ✅ **API Layer:** The POST /keys/{userID} and GET /keys/{userID} endpoints are fully functional.
-* ✅ **Dependency Injection:** The main.go executable correctly assembles the service and injects the chosen storage backend.
-* ✅ **Configuration:** The service's listen address is now managed via the Config struct.
-* ✅ **Logging:** All logging is now handled by zerolog for structured, machine-readable output.
-
-### **What's Next (Phase 2 & 3\)**
-
-The immediate next steps involve implementing the production-hardening and security features outlined in the roadmap.
-
-* **Authentication & Authorization:** The highest priority is to implement **JWT-based authentication and authorization** to secure the API endpoints. A user should only be able to manage their own key.
-* **Observability:** While structured logging is in place, the service still needs a /healthz endpoint and Prometheus metrics for monitoring.
-* **Improved Error Handling:** API errors should be returned as structured JSON, not plain text.
-* **Deployment:** The service needs a Dockerfile for containerization and a CI/CD pipeline for automated builds and deployments.
+   \# Retrieve a key (publicly accessible)  
+   $ curl http://localhost:8081/keys/urn:sm:user:user-alice  
+   THIS\_IS\_A\_KEY  

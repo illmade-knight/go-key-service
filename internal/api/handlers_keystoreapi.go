@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/illmade-knight/go-key-service/pkg/keyservice"
+	"github.com/illmade-knight/go-microservice-base/pkg/response" // ADDED: Import the new response helper
 	"github.com/illmade-knight/go-secure-messaging/pkg/urn"
 	"github.com/rs/zerolog"
 )
@@ -22,7 +23,8 @@ func (a *API) StoreKeyHandler(w http.ResponseWriter, r *http.Request) {
 	authedUserID, ok := GetUserIDFromContext(r.Context())
 	if !ok {
 		a.Logger.Error().Msg("User ID not found in context; middleware may be misconfigured.")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		// CHANGED: Use standardized JSON error response
+		response.WriteJSONError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -31,33 +33,33 @@ func (a *API) StoreKeyHandler(w http.ResponseWriter, r *http.Request) {
 	entityURN, err := urn.Parse(entityURNStr)
 	if err != nil {
 		a.Logger.Warn().Err(err).Str("raw_urn", entityURNStr).Msg("Invalid URN format in request path")
-		http.Error(w, "Invalid URN format in request path", http.StatusBadRequest)
+		// CHANGED: Use standardized JSON error response
+		response.WriteJSONError(w, http.StatusBadRequest, "Invalid URN format in request path")
 		return
 	}
 
 	// 3. THE CRITICAL SECURITY CHECK:
-	// Ensure the authenticated user is only trying to store a key for themselves.
-	// The ID from the token (`sub` claim) must match the ID in the URN.
 	if authedUserID != entityURN.EntityID() {
 		a.Logger.Warn().Str("authed_user", authedUserID).Str("target_urn", entityURN.String()).Msg("Authorization failed: User attempted to store key for another entity.")
-		http.Error(w, "Forbidden", http.StatusForbidden)
+		// CHANGED: Use standardized JSON error response
+		response.WriteJSONError(w, http.StatusForbidden, "Forbidden")
 		return
 	}
 
 	logger := a.Logger.With().Str("entity_urn", entityURN.String()).Logger()
 	key, err := io.ReadAll(r.Body)
 	if err != nil {
-		// ...
+		logger.Error().Err(err).Msg("Failed to read request body")
+		response.WriteJSONError(w, http.StatusBadRequest, "Cannot read request body")
 		return
 	}
 
-	// --- ADD THIS LOGGING ---
 	logger.Info().Int("byteLength", len(key)).Msg("[Checkpoint 2: RECEIPT] Key received from client")
-	// -------------------------
 
 	if err := a.Store.StoreKey(r.Context(), entityURN, key); err != nil {
 		logger.Error().Err(err).Msg("Failed to store key")
-		http.Error(w, "Failed to store key", http.StatusInternalServerError)
+		// CHANGED: Use standardized JSON error response
+		response.WriteJSONError(w, http.StatusInternalServerError, "Failed to store key")
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -70,7 +72,8 @@ func (a *API) GetKeyHandler(w http.ResponseWriter, r *http.Request) {
 	entityURN, err := urn.Parse(entityURNStr)
 	if err != nil {
 		a.Logger.Warn().Err(err).Str("raw_urn", entityURNStr).Msg("Invalid URN format")
-		http.Error(w, "Invalid URN format", http.StatusBadRequest)
+		// CHANGED: Use standardized JSON error response
+		response.WriteJSONError(w, http.StatusBadRequest, "Invalid URN format")
 		return
 	}
 
@@ -78,10 +81,11 @@ func (a *API) GetKeyHandler(w http.ResponseWriter, r *http.Request) {
 	key, err := a.Store.GetKey(r.Context(), entityURN)
 	if err != nil {
 		logger.Warn().Err(err).Msg("Key not found")
-		http.NotFound(w, r)
+		// CHANGED: Use standardized JSON error response
+		response.WriteJSONError(w, http.StatusNotFound, "Key not found")
 		return
 	}
-	
+
 	logger.Info().Int("byteLength", len(key)).Msg("[Checkpoint 3: RETRIEVAL] Key retrieved from store to be sent")
 
 	w.Header().Set("Content-Type", "application/octet-stream")
