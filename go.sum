@@ -162,8 +162,8 @@ github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aN
 github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 h1:8Tjv8EJ+pM1xP8mK6egEbD1OgnVTyacbefKhmbLhIhU=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2/go.mod h1:pkJQ2tZHJ0aFOVEEot6oZmaVEZcRme73eIFmhiVuRWs=
-github.com/illmade-knight/go-microservice-base v0.0.1 h1:LiqXeK0tbOrxhUMW6qJFWCjwWBDll9i4hqs4AMsUDdE=
-github.com/illmade-knight/go-microservice-base v0.0.1/go.mod h1:xIWA1asNTy84UZBV8bcgbijtBXVSd/7FG/eaOkgwIiU=
+github.com/illmade-knight/go-microservice-base v0.0.3 h1:7W91dlkovMSYhRum6I5252ZFQz2QtEYsjkN7uMo9qoU=
+github.com/illmade-knight/go-microservice-base v0.0.3/go.mod h1:xWM+KfkU54GgX9ZEDhj+FVkAbQ4ozZorrewyUxfXiOY=
 github.com/illmade-knight/go-secure-messaging v0.0.13-beta h1:b/nUNpuxNX88AKPezLjdsJkSsurmv8BX8v+hjWhuqSk=
 github.com/illmade-knight/go-secure-messaging v0.0.13-beta/go.mod h1:Gj6UYeUH/Cz0oawRXMoti6+rjfDRfRk2IGipum5zjT8=
 github.com/illmade-knight/go-test v0.0.6 h1:a1snqy0GIEfnlrKg9u4X9gmMN7rNIgWRuDI+V5nlHes=

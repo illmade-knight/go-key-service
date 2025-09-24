@@ -7,7 +7,7 @@ toolchain go1.24.6
 require (
 	cloud.google.com/go/firestore v1.18.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
-	github.com/illmade-knight/go-microservice-base v0.0.1
+	github.com/illmade-knight/go-microservice-base v0.0.3
 	github.com/illmade-knight/go-secure-messaging v0.0.13-beta
 	github.com/illmade-knight/go-test v0.0.6
 	github.com/rs/zerolog v1.34.0
