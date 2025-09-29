@@ -1,26 +1,33 @@
-// Package test provides public helpers for running end-to-end tests against the service.
 package test
 
 import (
+	"net/http"
 	"net/http/httptest"
 
 	"cloud.google.com/go/firestore"
-	firestorestorage "github.com/illmade-knight/go-key-service/internal/storage/firestore"
+	fs "github.com/illmade-knight/go-key-service/internal/storage/firestore"
 	inmemorystore "github.com/illmade-knight/go-key-service/internal/storage/inmemory"
 	"github.com/illmade-knight/go-key-service/keyservice"
 	ks "github.com/illmade-knight/go-key-service/pkg/keyservice"
+	"github.com/illmade-knight/go-microservice-base/pkg/middleware"
 	"github.com/rs/zerolog"
 )
 
 // NewTestServer creates and starts a new httptest.Server for end-to-end testing.
-// It assembles the service with an in-memory store.
-func NewTestServer() *httptest.Server {
-	cfg := &ks.Config{}
+// It assembles the service with an in-memory store and a provided auth middleware.
+func NewTestServer(authMiddleware func(http.Handler) http.Handler) *httptest.Server {
+	// Use a default config for testing.
+	cfg := &ks.Config{
+		HTTPListenAddr: ":0",
+		CorsConfig: middleware.CorsConfig{
+			AllowedOrigins: []string{"*"}, // Allow all for tests
+			Role:           middleware.CorsRoleDefault,
+		},
+	}
 	store := inmemorystore.New()
 	logger := zerolog.Nop()
 
-	service := keyservice.New(cfg, store, logger)
-	// CHANGED: Use Mux() instead of the removed Handler() method.
+	service := keyservice.New(cfg, store, authMiddleware, logger)
 	server := httptest.NewServer(service.Mux())
 
 	return server
@@ -28,15 +35,23 @@ func NewTestServer() *httptest.Server {
 
 // NewTestKeyService creates and starts a new httptest.Server for the key service,
 // backed by a real (emulated) Firestore client.
-func NewTestKeyService(fsClient *firestore.Client, collectionName string) *httptest.Server {
-	cfg := &ks.Config{}
+func NewTestKeyService(
+	fsClient *firestore.Client,
+	collectionName string,
+	authMiddleware func(http.Handler) http.Handler,
+) *httptest.Server {
+	cfg := &ks.Config{
+		HTTPListenAddr: ":0",
+		CorsConfig: middleware.CorsConfig{
+			AllowedOrigins: []string{"*"},
+			Role:           middleware.CorsRoleDefault,
+		},
+	}
 	logger := zerolog.Nop()
 
-	// This helper can legally import the internal storage package.
-	store := firestorestorage.New(fsClient, collectionName)
+	store := fs.New(fsClient, collectionName)
 
-	service := keyservice.New(cfg, store, logger)
-	// CHANGED: Use Mux() instead of the removed Handler() method.
+	service := keyservice.New(cfg, store, authMiddleware, logger)
 	server := httptest.NewServer(service.Mux())
 
 	return server

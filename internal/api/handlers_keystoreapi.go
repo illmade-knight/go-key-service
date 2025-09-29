@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"io"
 	"net/http"
 
@@ -15,6 +16,23 @@ type API struct {
 	Store     keyservice.Store
 	Logger    zerolog.Logger
 	JWTSecret string
+}
+
+type contextKey string
+
+// UserContextKey is the key used to store the authenticated user's ID from the JWT.
+const UserContextKey contextKey = "userID"
+
+// GetUserIDFromContext safely retrieves the user ID from the request context.
+func GetUserIDFromContext(ctx context.Context) (string, bool) {
+	userID, ok := ctx.Value(UserContextKey).(string)
+	return userID, ok
+}
+
+// ContextWithUserID is a helper function for tests to inject a user ID
+// into a context, simulating a successful authentication from middleware.
+func ContextWithUserID(ctx context.Context, userID string) context.Context {
+	return context.WithValue(ctx, UserContextKey, userID)
 }
 
 // StoreKeyHandler manages the POST requests for entity keys.
@@ -89,6 +107,9 @@ func (a *API) GetKeyHandler(w http.ResponseWriter, r *http.Request) {
 	logger.Info().Int("byteLength", len(key)).Msg("[Checkpoint 3: RETRIEVAL] Key retrieved from store to be sent")
 
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Write(key)
+	_, err = w.Write(key)
+	if err != nil {
+		logger.Error().Err(err).Msg("write fail")
+	}
 	logger.Info().Msg("Successfully retrieved public key")
 }

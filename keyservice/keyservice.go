@@ -5,43 +5,53 @@ import (
 
 	"github.com/illmade-knight/go-key-service/internal/api"
 	"github.com/illmade-knight/go-key-service/pkg/keyservice"
-	"github.com/illmade-knight/go-microservice-base/pkg/microservice" // ADDED
+	"github.com/illmade-knight/go-microservice-base/pkg/microservice"
+	"github.com/illmade-knight/go-microservice-base/pkg/middleware"
 	"github.com/rs/zerolog"
 )
 
 // Wrapper now embeds the BaseServer to inherit standard server functionality.
 type Wrapper struct {
-	*microservice.BaseServer // CHANGED: Embed BaseServer
-	cfg                      *keyservice.Config
-	logger                   zerolog.Logger
+	*microservice.BaseServer
+	logger zerolog.Logger
 }
 
 // New creates and wires up the entire key service.
-func New(cfg *keyservice.Config, store keyservice.Store, logger zerolog.Logger) *Wrapper {
-	// 1. Create the standard base server. It includes /healthz, /readyz, and /metrics.
+func New(
+	cfg *keyservice.Config,
+	store keyservice.Store,
+	authMiddleware func(http.Handler) http.Handler, // Accept middleware via DI
+	logger zerolog.Logger,
+) *Wrapper {
+	// 1. Create the standard base server.
 	baseServer := microservice.NewBaseServer(logger, cfg.HTTPListenAddr)
 
 	// 2. Create the service-specific API handlers.
-	apiHandler := &api.API{Store: store, Logger: logger, JWTSecret: cfg.JWTSecret}
+	apiHandler := &api.API{Store: store, Logger: logger}
 
-	// 3. Get the mux from the base server and register service-specific routes.
+	// 3. Get the mux from the base server and register routes.
 	mux := baseServer.Mux()
 
-	storeKeyHandler := http.HandlerFunc(apiHandler.StoreKeyHandler)
-	mux.Handle("POST /keys/{entityURN}", api.CorsMiddleware(apiHandler.JwtAuthMiddleware(storeKeyHandler)))
+	// 4. Create CORS middleware from the loaded config.
+	corsMiddleware := middleware.NewCorsMiddleware(middleware.CorsConfig{
+		AllowedOrigins: cfg.CorsConfig.AllowedOrigins,
+		Role:           middleware.CorsRoleDefault,
+	})
 
-	doNothingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
-	mux.Handle("OPTIONS /keys/{entityURN}", api.CorsMiddleware(doNothingHandler))
-	mux.Handle("GET /keys/{entityURN}", api.CorsMiddleware(http.HandlerFunc(apiHandler.GetKeyHandler)))
+	// 5. Apply middleware to the handlers.
+	storeKeyHandler := http.HandlerFunc(apiHandler.StoreKeyHandler)
+	mux.Handle("POST /keys/{entityURN}", corsMiddleware(authMiddleware(storeKeyHandler)))
+
+	// Public endpoint, only needs CORS.
+	getKeyHandler := http.HandlerFunc(apiHandler.GetKeyHandler)
+	mux.Handle("GET /keys/{entityURN}", corsMiddleware(getKeyHandler))
+
+	// OPTIONS handler for CORS preflight requests.
+	optionsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+	mux.Handle("OPTIONS /keys/{entityURN}", corsMiddleware(optionsHandler))
 
 	return &Wrapper{
-		BaseServer: baseServer, // CHANGED
-		cfg:        cfg,
+		BaseServer: baseServer,
 		logger:     logger,
 	}
 }
-
-// REMOVED: The Handler(), Start(), and Shutdown() methods are now inherited from BaseServer.
-// If you needed to add custom shutdown logic (e.g., close a database client), you would
-// override the Shutdown method here, perform your custom logic, and then call
-// the embedded w.BaseServer.Shutdown(ctx).

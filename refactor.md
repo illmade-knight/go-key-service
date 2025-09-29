@@ -18,6 +18,17 @@ By embedding the microservice.BaseServer, the key service inherited a suite of p
 3. **API Handlers (internal/api/)**:
     * All instances of http.Error were replaced with calls to response.WriteJSONError. This ensures all API error responses are structured, consistent JSON objects.
 
+### **Security Hardening Refactor (JWT)**
+
+As part of the standardization, the service's authentication mechanism was significantly upgraded.
+
+1. **Middleware Migration**:
+    * The service was updated to use the new middleware.NewJWKSAuthMiddleware from the go-microservice-base library.
+    * The insecure JWT\_SECRET was removed from the service's configuration.
+    * The IDENTITY\_SERVICE\_URL was added to the configuration to allow the middleware to locate the identity service's public JWKS endpoint.
+2. **Benefit**:
+    * This change decouples the service from a shared secret, vastly improving the security posture of the entire system. Token validation is now done using a secure, industry-standard asymmetric key (RS256) pattern.
+
 This final refactor achieved the project's goal of creating a robust, scalable, and maintainable service that is easy to operate and monitor.
 
 ## **Initial Architectural Refactor**

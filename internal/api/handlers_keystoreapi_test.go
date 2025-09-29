@@ -6,7 +6,7 @@ package api_test
 import (
 	"bytes"
 	"context"
-	"encoding/json" // ADDED: For unmarshaling JSON error responses
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
