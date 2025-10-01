@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,7 +25,7 @@ func main() {
 
 	// --- 1. Load Configuration from YAML ---
 	var configPath string
-	flag.StringVar(&configPath, "config", "cmd/keyservice/local/local.yaml", "Path to config file")
+	flag.StringVar(&configPath, "config", "./cmd/keyservice/local.yaml", "Path to config file")
 	flag.Parse()
 
 	cfg, err := config.Load(configPath)
@@ -55,7 +56,9 @@ func main() {
 	logger.Info().Str("project_id", cfg.ProjectID).Msg("Using Firestore key store")
 
 	// --- 3. Service Initialization ---
-	authMiddleware, err := middleware.NewJWKSAuthMiddleware(cfg.IdentityServiceURL)
+	sanitizedIdentityURL := strings.Trim(cfg.IdentityServiceURL, "\"")
+	jwksURL := sanitizedIdentityURL + "/.well-known/jwks.json"
+	authMiddleware, err := middleware.NewJWKSAuthMiddleware(jwksURL)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create auth middleware")
 	}
